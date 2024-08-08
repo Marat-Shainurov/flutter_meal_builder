@@ -11,7 +11,7 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   final OdooService odooService = OdooService('http://192.168.100.38:8069');
   List<dynamic> orders = [];
-  dynamic sessionId = '';
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -20,14 +20,22 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _fetchSessionAndOrders() async {
+    setState(() {
+      isLoading =
+          true; // Set loading state to true when fetching data for refreshing
+    });
     try {
-      final fetchedOrders = await odooService.fetchSessionId();
+      final sessionId = await odooService.fetchSessionId();
+      final fetchedOrders = await odooService.fetchOrders(sessionId);
       setState(() {
-        sessionId = fetchedOrders;
+        orders = fetchedOrders;
+        isLoading = false;
       });
-      print('Session id: $sessionId');
+      print('Fetched orders: $orders');
     } catch (e) {
-      // Handle error
+      setState(() {
+        isLoading = false;
+      });
       print('Error fetching orders: $e');
     }
   }
@@ -42,8 +50,31 @@ class _HomeState extends State<Home> {
         ),
         backgroundColor: Colors.blue[500],
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed:
+                _fetchSessionAndOrders, // Refresh the orders when pressed
+          ),
+        ],
       ),
-      body: Container(child: Text('Odoo Session id: $sessionId')),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : orders.isEmpty
+              ? const Center(child: Text('No orders found'))
+              : ListView.builder(
+                  itemCount: orders.length,
+                  itemBuilder: (context, index) {
+                    final order = orders[index];
+                    return ListTile(
+                      title: Text(order['name']),
+                      subtitle: Text('Identifier: ${order['identifier']}'),
+                      onTap: () {
+                        // Handle order tap
+                      },
+                    );
+                  },
+                ),
     );
   }
 }
