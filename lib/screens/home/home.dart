@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_meal_builder/services/odoo_service.dart';
+import 'package:flutter_meal_builder/screens/order_details/order_details.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -66,12 +67,23 @@ class _HomeState extends State<Home> {
                   itemCount: orders.length,
                   itemBuilder: (context, index) {
                     final order = orders[index];
-                    return ListTile(
-                      title: Text(order['name']),
-                      subtitle: Text('Identifier: ${order['identifier']}'),
-                      onTap: () {
-                        // Handle order tap
-                      },
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 16),
+                      child: ListTile(
+                        title: Text(order['name'],
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
+                        onTap: () {
+                          // Navigate to OrderDetails page when an order is tapped
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => OrderDetails(order: order),
+                            ),
+                          );
+                        },
+                      ),
                     );
                   },
                 ),
