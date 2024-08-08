@@ -70,6 +70,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.2"
+  flutter_sunmi_printer_plus:
+    dependency: "direct main"
+    description:
+      name: flutter_sunmi_printer_plus
+      sha256: fd702c6640de4903542f7d6a841e3a439f762e05095443f3c28074ae62ee14f6
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.1"
   flutter_test:
     dependency: "direct dev"
     description: flutter
