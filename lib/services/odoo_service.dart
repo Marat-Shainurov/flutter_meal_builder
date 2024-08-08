@@ -52,4 +52,23 @@ class OdooService {
     }
     return null;
   }
+
+  Future<List<dynamic>> fetchOrders(String sessionId) async {
+    final headers = {"Cookie": "session_id=$sessionId"};
+    final ordersResponse = await http.post(
+      Uri.parse('$baseUrl/api/kitchen_orders'),
+      headers: headers,
+    );
+
+    if (ordersResponse.statusCode == 200) {
+      final ordersData = json.decode(ordersResponse.body);
+      if (ordersData is List) {
+        return ordersData;
+      } else {
+        throw Exception('Failed to load orders');
+      }
+    } else {
+      throw Exception('Failed to fetch orders');
+    }
+  }
 }
