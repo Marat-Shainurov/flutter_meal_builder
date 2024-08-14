@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_meal_builder/services/odoo_service.dart';
 import 'package:flutter_sunmi_printer_plus/flutter_sunmi_printer_plus.dart';
@@ -74,6 +75,7 @@ class _HomeState extends State<Home> {
   // }
 
   Future<void> _printOrderDetails(dynamic order) async {
+    print(order);
     if (!isConnected) {
       print('Printer is not connected.');
       print('$errorMessage');
@@ -94,7 +96,7 @@ class _HomeState extends State<Home> {
 
       for (var option in order['option_ids']) {
         await SunmiPrinter.printText(
-          content: '${option['base']}: ${option['name']}',
+          content: '${option['short_name']}',
           style: SunmiStyle(
             fontSize: 20,
             align: SunmiPrintAlign.LEFT,
@@ -143,6 +145,10 @@ class _HomeState extends State<Home> {
                   itemCount: orders.length,
                   itemBuilder: (context, index) {
                     final order = orders[index];
+                    DateTime parsedDate = DateTime.parse(order['date']);
+                    String formattedDate =
+                        DateFormat('dd.MM.yyyy').format(parsedDate);
+
                     return Card(
                       margin: const EdgeInsets.symmetric(
                         vertical: 10.0,
@@ -151,7 +157,7 @@ class _HomeState extends State<Home> {
                       child: ListTile(
                         title: Text(order['name'],
                             style: TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('Identifier: ${order['identifier']}'),
+                        subtitle: Text(formattedDate),
                         trailing: IconButton(
                           icon: Icon(Icons.print),
                           onPressed: () {
