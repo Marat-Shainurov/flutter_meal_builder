@@ -84,9 +84,9 @@ class _HomeState extends State<Home> {
 
     try {
       await SunmiPrinter.printText(
-        content: 'Order: ${order['name']}',
+        content: '#001', // Placeholder for an order number
         style: SunmiStyle(
-          fontSize: 24,
+          fontSize: 100,
           bold: true,
           align: SunmiPrintAlign.CENTER,
         ),
@@ -94,22 +94,43 @@ class _HomeState extends State<Home> {
 
       await SunmiPrinter.lineWrap(1);
 
+      // Print the table header
+      await SunmiPrinter.printText(
+        content: 'Title\t\tScoops\tTotal',
+        style: SunmiStyle(
+          fontSize: 50,
+          bold: true,
+          align: SunmiPrintAlign.LEFT,
+        ),
+      );
+
+      await SunmiPrinter.lineWrap(1);
+      await SunmiPrinter.printText(
+        content: '--------------------------------',
+        style: SunmiStyle(
+          fontSize: 20,
+          align: SunmiPrintAlign.LEFT,
+        ),
+      );
+
       for (var option in order['option_ids']) {
         await SunmiPrinter.printText(
-          content: '${option['short_name']}',
+          content:
+              '${option['short_name']}\t\t${option['weights_qty']}\t${option['serving_weight']} g',
           style: SunmiStyle(
-            fontSize: 20,
-            align: SunmiPrintAlign.LEFT,
-          ),
-        );
-        await SunmiPrinter.printText(
-          content: 'Weight: ${option['weight_id']}',
-          style: SunmiStyle(
-            fontSize: 20,
+            fontSize: 40,
             align: SunmiPrintAlign.LEFT,
           ),
         );
         await SunmiPrinter.lineWrap(1);
+
+        await SunmiPrinter.printText(
+          content: '--------------------------------',
+          style: SunmiStyle(
+            fontSize: 20,
+            align: SunmiPrintAlign.LEFT,
+          ),
+        );
       }
 
       await SunmiPrinter.feedPaper();
@@ -123,7 +144,7 @@ class _HomeState extends State<Home> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          "Meal Builder",
+          "Kitchen Assistant",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.blue[500],
