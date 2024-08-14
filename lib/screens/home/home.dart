@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_meal_builder/services/odoo_service.dart';
+import 'package:flutter_meal_builder/services/utils.dart';
 import 'package:flutter_sunmi_printer_plus/flutter_sunmi_printer_plus.dart';
 import 'package:flutter_sunmi_printer_plus/enums.dart';
 import 'package:flutter_sunmi_printer_plus/sunmi_style.dart';
@@ -14,6 +15,7 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
+  final Utils utils = Utils();
   final OdooService odooService = OdooService('https://evo.migom.cloud');
   // final OdooService odooService = OdooService('http://192.168.100.38:8069');
 
@@ -75,50 +77,61 @@ class _HomeState extends State<Home> {
   // }
 
   Future<void> _printOrderDetails(dynamic order) async {
-    print(order);
+    String orderNumber = '#001';
+
+    print('Title\t\tScoops\tTotal');
     if (!isConnected) {
       print('Printer is not connected.');
       print('$errorMessage');
+
+      for (var option in order['option_ids']) {
+        String ingredientLiine =
+            '${option['short_name']}\t\t${option['weights_qty']}\t${option['serving_weight']} g';
+        print(ingredientLiine);
+      }
       return;
     }
 
     try {
       await SunmiPrinter.printText(
-        content: '#001', // Placeholder for an order number
+        content: orderNumber,
         style: SunmiStyle(
-          fontSize: 100,
+          fontSize: 40,
           bold: true,
           align: SunmiPrintAlign.CENTER,
         ),
       );
-
       await SunmiPrinter.lineWrap(1);
 
       // Print the table header
       await SunmiPrinter.printText(
         content: 'Title\t\tScoops\tTotal',
         style: SunmiStyle(
-          fontSize: 50,
+          fontSize: 30,
           bold: true,
           align: SunmiPrintAlign.LEFT,
         ),
       );
-
       await SunmiPrinter.lineWrap(1);
+
       await SunmiPrinter.printText(
         content: '--------------------------------',
         style: SunmiStyle(
-          fontSize: 20,
+          fontSize: 30,
           align: SunmiPrintAlign.LEFT,
         ),
       );
+      await SunmiPrinter.lineWrap(1);
 
       for (var option in order['option_ids']) {
+        String ingredientLiine =
+            '${option['short_name']}\t\t${option['weights_qty']}\t${option['serving_weight']} g';
+        print(ingredientLiine);
+
         await SunmiPrinter.printText(
-          content:
-              '${option['short_name']}\t\t${option['weights_qty']}\t${option['serving_weight']} g',
+          content: ingredientLiine,
           style: SunmiStyle(
-            fontSize: 40,
+            fontSize: 30,
             align: SunmiPrintAlign.LEFT,
           ),
         );
@@ -127,10 +140,11 @@ class _HomeState extends State<Home> {
         await SunmiPrinter.printText(
           content: '--------------------------------',
           style: SunmiStyle(
-            fontSize: 20,
+            fontSize: 30,
             align: SunmiPrintAlign.LEFT,
           ),
         );
+        await SunmiPrinter.lineWrap(1);
       }
 
       await SunmiPrinter.feedPaper();
@@ -168,7 +182,12 @@ class _HomeState extends State<Home> {
                     final order = orders[index];
                     DateTime parsedDate = DateTime.parse(order['date']);
                     String formattedDate =
-                        DateFormat('dd.MM.yyyy').format(parsedDate);
+                        DateFormat('dd.MM.yyyy HH:mm').format(parsedDate);
+
+                    // Calculate time ago
+                    Duration timeDifference =
+                        DateTime.now().difference(parsedDate);
+                    String timeAgo = utils.formatTimeAgo(timeDifference);
 
                     return Card(
                       margin: const EdgeInsets.symmetric(
@@ -176,9 +195,9 @@ class _HomeState extends State<Home> {
                         horizontal: 15.0,
                       ),
                       child: ListTile(
-                        title: Text(order['name'],
+                        title: Text(order['order_number'],
                             style: TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(formattedDate),
+                        subtitle: Text('$formattedDate, $timeAgo'),
                         trailing: IconButton(
                           icon: Icon(Icons.print),
                           onPressed: () {
