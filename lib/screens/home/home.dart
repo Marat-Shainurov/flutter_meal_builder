@@ -87,7 +87,7 @@ class _HomeState extends State<Home> {
 
       for (var option in order['option_ids']) {
         String ingredientLiine =
-            '${option['short_name']}\t\t${option['weights_qty']}\t${option['serving_weight']} g';
+            '${option['short_name']}\t\t${option['weights_qty'].toInt()}\t${option['serving_weight'].toInt()} g';
         print(ingredientLiine);
       }
       return;
@@ -120,12 +120,12 @@ class _HomeState extends State<Home> {
               align: SunmiPrintAlign.LEFT,
               width: 8),
           ColumnMaker(
-              text: option['weights_qty'].toString(),
+              text: '${option['weights_qty'].toInt()}',
               align: SunmiPrintAlign.CENTER,
               width: 4),
           ColumnMaker(
-              text: '${option['serving_weight']}g',
-              align: SunmiPrintAlign.CENTER,
+              text: '${option['serving_weight'].toInt()} g',
+              align: SunmiPrintAlign.RIGHT,
               width: 4),
         ]);
         await SunmiPrinter.lineWrap(1);
