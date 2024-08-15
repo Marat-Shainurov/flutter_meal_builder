@@ -6,6 +6,7 @@ import 'package:flutter_meal_builder/services/utils.dart';
 import 'package:flutter_sunmi_printer_plus/flutter_sunmi_printer_plus.dart';
 import 'package:flutter_sunmi_printer_plus/enums.dart';
 import 'package:flutter_sunmi_printer_plus/sunmi_style.dart';
+import 'package:flutter_sunmi_printer_plus/column_maker.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -77,7 +78,7 @@ class _HomeState extends State<Home> {
   // }
 
   Future<void> _printOrderDetails(dynamic order) async {
-    String orderNumber = '#001';
+    String orderNumber = order["order_number"];
 
     print('Title\t\tScoops\tTotal');
     if (!isConnected) {
@@ -92,6 +93,7 @@ class _HomeState extends State<Home> {
       return;
     }
 
+    // Print the order number
     try {
       await SunmiPrinter.printText(
         content: orderNumber,
@@ -103,51 +105,34 @@ class _HomeState extends State<Home> {
       );
       await SunmiPrinter.lineWrap(1);
 
-      // Print the table header
-      await SunmiPrinter.printText(
-        content: 'Title\t\tScoops\tTotal',
-        style: SunmiStyle(
-          fontSize: 30,
-          bold: true,
-          align: SunmiPrintAlign.LEFT,
-        ),
-      );
-      await SunmiPrinter.lineWrap(1);
-
-      await SunmiPrinter.printText(
-        content: '--------------------------------',
-        style: SunmiStyle(
-          fontSize: 30,
-          align: SunmiPrintAlign.LEFT,
-        ),
-      );
+      // Print the table with the order details
+      await SunmiPrinter.printTable(cols: [
+        ColumnMaker(text: 'Title', align: SunmiPrintAlign.LEFT, width: 6),
+        ColumnMaker(text: 'Scoops', align: SunmiPrintAlign.CENTER, width: 3),
+        ColumnMaker(text: 'Total', align: SunmiPrintAlign.RIGHT, width: 3),
+      ]);
       await SunmiPrinter.lineWrap(1);
 
       for (var option in order['option_ids']) {
-        String ingredientLiine =
-            '${option['short_name']}\t\t${option['weights_qty']}\t${option['serving_weight']} g';
-        print(ingredientLiine);
-
-        await SunmiPrinter.printText(
-          content: ingredientLiine,
-          style: SunmiStyle(
-            fontSize: 30,
-            align: SunmiPrintAlign.LEFT,
-          ),
-        );
-        await SunmiPrinter.lineWrap(1);
-
-        await SunmiPrinter.printText(
-          content: '--------------------------------',
-          style: SunmiStyle(
-            fontSize: 30,
-            align: SunmiPrintAlign.LEFT,
-          ),
-        );
+        await SunmiPrinter.printTable(cols: [
+          ColumnMaker(
+              text: option['short_name'],
+              align: SunmiPrintAlign.LEFT,
+              width: 8),
+          ColumnMaker(
+              text: option['weights_qty'].toString(),
+              align: SunmiPrintAlign.CENTER,
+              width: 4),
+          ColumnMaker(
+              text: '${option['serving_weight']}g',
+              align: SunmiPrintAlign.CENTER,
+              width: 4),
+        ]);
         await SunmiPrinter.lineWrap(1);
       }
 
       await SunmiPrinter.feedPaper();
+      await SunmiPrinter.cutPaper();
     } catch (err) {
       print('Error printing order: $err');
     }
