@@ -7,6 +7,7 @@ import 'package:flutter_sunmi_printer_plus/flutter_sunmi_printer_plus.dart';
 import 'package:flutter_sunmi_printer_plus/enums.dart';
 import 'package:flutter_sunmi_printer_plus/sunmi_style.dart';
 import 'package:flutter_sunmi_printer_plus/column_maker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -32,6 +33,7 @@ class _HomeState extends State<Home> {
   void initState() {
     super.initState();
     _initializePrinter();
+    _loadRestaurantData();
     _fetchSessionAndOrders();
     // _startAutoRefresh(); // Start the periodic refresh
     print('Current restaurantName: ${restaurantName}');
@@ -45,6 +47,22 @@ class _HomeState extends State<Home> {
       errorMessage = err.toString();
       setState(() {});
     }
+  }
+
+  // Load saved restaurant data from SharedPreferences
+  Future<void> _loadRestaurantData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      restaurantId = prefs.getString('restaurantId');
+      restaurantName = prefs.getString('restaurantName');
+    });
+  }
+
+  // Save restaurant data to SharedPreferences
+  Future<void> _saveRestaurantData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('restaurantId', restaurantId!);
+    await prefs.setString('restaurantName', restaurantName!);
   }
 
   Future<void> _fetchSessionAndOrders() async {
@@ -187,6 +205,7 @@ class _HomeState extends State<Home> {
         restaurantName = restaurantData['name'];
         _showsuccessAlert();
         _fetchSessionAndOrders();
+        _saveRestaurantData();
       });
     } catch (e) {
       _showErrorAlert("ID is incorrect");
