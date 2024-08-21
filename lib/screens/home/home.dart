@@ -24,6 +24,8 @@ class _HomeState extends State<Home> {
   bool isLoading = true;
   bool isConnected = false;
   String errorMessage = '';
+  String? restaurantId;
+  String? restaurantName;
   // Timer? _timer; // Timer instance
 
   @override
@@ -32,6 +34,7 @@ class _HomeState extends State<Home> {
     _initializePrinter();
     _fetchSessionAndOrders();
     // _startAutoRefresh(); // Start the periodic refresh
+    print('Current restaurantName: ${restaurantName}');
   }
 
   Future<void> _initializePrinter() async {
@@ -51,7 +54,8 @@ class _HomeState extends State<Home> {
     });
     try {
       final sessionId = await odooService.fetchSessionId();
-      final fetchedOrders = await odooService.fetchOrders(sessionId);
+      final fetchedOrders =
+          await odooService.fetchOrders(sessionId, restaurantId!);
       setState(() {
         orders = fetchedOrders;
         isLoading = false;
@@ -138,6 +142,95 @@ class _HomeState extends State<Home> {
     }
   }
 
+  Future<void> _showSetRestaurantDialog() async {
+    TextEditingController restaurantController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Please, input your restaurant identifier'),
+              TextField(
+                controller: restaurantController,
+                decoration: const InputDecoration(hintText: "Restaurant ID"),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                setState(() {
+                  restaurantId = restaurantController.text;
+                });
+                final sessionId = await odooService.fetchSessionId();
+                _fetchRestaurant(sessionId, restaurantId!);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _fetchRestaurant(String sessionId, String restaurantId) async {
+    utils.showLoaderDialog(context);
+    try {
+      final restaurantData =
+          await odooService.fetchRestaurant(sessionId, restaurantId);
+      Navigator.pop(context);
+      setState(() {
+        restaurantName = restaurantData['name'];
+        _showsuccessAlert();
+        _fetchSessionAndOrders();
+      });
+    } catch (e) {
+      _showErrorAlert("ID is incorrect");
+    }
+  }
+
+  Future<void> _showErrorAlert(String message) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showsuccessAlert() async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: const Text('The restaurant has been successfully set'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -156,6 +249,42 @@ class _HomeState extends State<Home> {
                 _fetchSessionAndOrders, // Refresh the orders when pressed
           ),
         ],
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.blue[500],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Menu',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    restaurantName != null
+                        ? 'Restaurant: $restaurantName'
+                        : 'Restaurant is not set',
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.restaurant),
+              title: const Text('Set Restaurant'),
+              onTap: _showSetRestaurantDialog,
+            ),
+          ],
+        ),
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
