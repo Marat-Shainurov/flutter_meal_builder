@@ -53,11 +53,15 @@ class OdooService {
     return null;
   }
 
-  Future<List<dynamic>> fetchOrders(String sessionId) async {
+  Future<List<dynamic>> fetchOrders(
+      String sessionId, String restaurantId) async {
+    Map<String, dynamic> data = {"restaurant_id": restaurantId};
+
     final headers = {"Cookie": "session_id=$sessionId"};
     final ordersResponse = await http.post(
       Uri.parse('$baseUrl/api/kitchen_orders'),
       headers: headers,
+      body: json.encode(data),
     );
 
     if (ordersResponse.statusCode == 200) {
@@ -65,10 +69,40 @@ class OdooService {
       if (ordersData is List) {
         return ordersData;
       } else {
-        throw Exception('Failed to load orders');
+        print('Failed to load orders');
+        return [];
       }
     } else {
       throw Exception('Failed to fetch orders');
+    }
+  }
+
+  Future<dynamic> fetchRestaurant(
+      String sessionId, dynamic restaurantId) async {
+    final headers = {
+      "Cookie": "session_id=$sessionId",
+      'Content-Type': 'application/json',
+    };
+
+    Map<String, dynamic> data = {"restaurant_id": restaurantId};
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/restaurant'),
+      headers: headers,
+      body: json.encode(data),
+    );
+
+    if (response.statusCode == 200) {
+      final restaurantData = json.decode(response.body);
+      if (restaurantData['name'] != null) {
+        return restaurantData;
+      } else {
+        print("Fetching error: ${response.body}");
+        throw Exception('Fetching error: ${response.body}');
+      }
+    } else {
+      throw Exception(
+          'Failed to fetch restaurant, Status Code: ${response.statusCode}');
     }
   }
 }
