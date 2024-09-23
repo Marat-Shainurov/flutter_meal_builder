@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_meal_builder/services/odoo_service.dart';
+import 'package:flutter_meal_builder/screens/weighing/weighing_home.dart';
 import 'package:flutter_meal_builder/services/utils.dart';
 import 'package:flutter_sunmi_printer_plus/flutter_sunmi_printer_plus.dart';
 import 'package:flutter_sunmi_printer_plus/enums.dart';
@@ -262,7 +263,7 @@ class _HomeState extends State<Home> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             color: Colors.white,
             onPressed:
                 _fetchSessionAndOrders, // Refresh the orders when pressed
@@ -298,6 +299,30 @@ class _HomeState extends State<Home> {
               ),
             ),
             ListTile(
+              leading: const Icon(Icons.print),
+              title: const Text('Kitchen Orders'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => Home(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.scale),
+              title: const Text('Weighing'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => Weighing(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.restaurant),
               title: const Text('Set Restaurant'),
               onTap: _showSetRestaurantDialog,
@@ -329,10 +354,11 @@ class _HomeState extends State<Home> {
                       ),
                       child: ListTile(
                         title: Text(order['order_number'],
-                            style: TextStyle(fontWeight: FontWeight.bold)),
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text('$formattedDate, $timeAgo'),
                         trailing: IconButton(
-                          icon: Icon(Icons.print),
+                          icon: const Icon(Icons.print),
                           onPressed: () {
                             _printOrderDetails(order);
                           },

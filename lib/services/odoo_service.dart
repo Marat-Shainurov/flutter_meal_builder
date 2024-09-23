@@ -105,4 +105,24 @@ class OdooService {
           'Failed to fetch restaurant, Status Code: ${response.statusCode}');
     }
   }
+
+  Future<dynamic> fetchWeighingRecords(String sessionId) async {
+    final headers = {"Cookie": "session_id=$sessionId"};
+    final weighingResponse = await http.post(
+      Uri.parse('$baseUrl/api/weighing_records'),
+      headers: headers,
+    );
+
+    if (weighingResponse.statusCode == 200) {
+      final weighingData = json.decode(weighingResponse.body);
+      if (weighingData is List) {
+        return weighingData;
+      } else {
+        print('Failed to load weighing records');
+        return [];
+      }
+    } else {
+      throw Exception('Failed to fetch weighing records');
+    }
+  }
 }
