@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+import 'package:flutter_meal_builder/screens/devices/devices.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_meal_builder/services/odoo_service.dart';
@@ -40,13 +42,27 @@ class _HomeState extends State<Home> {
     print('Current restaurantName: ${restaurantName}');
   }
 
+  // Future<void> _initializePrinter() async {
+  //   try {
+  //     isConnected = await SunmiPrinter.initPrinter() ?? false;
+  //     setState(() {});
+  //   } catch (err) {
+  //     errorMessage = err.toString();
+  //     setState(() {});
+  //   }
+  // }
+
   Future<void> _initializePrinter() async {
-    try {
-      isConnected = await SunmiPrinter.initPrinter() ?? false;
-      setState(() {});
-    } catch (err) {
-      errorMessage = err.toString();
-      setState(() {});
+    if (Platform.isAndroid) {
+      try {
+        isConnected = await SunmiPrinter.initPrinter() ?? false;
+        setState(() {});
+      } catch (err) {
+        errorMessage = err.toString();
+        setState(() {});
+      }
+    } else {
+      print('Printing not supported on this platform.');
     }
   }
 
@@ -326,6 +342,18 @@ class _HomeState extends State<Home> {
               leading: const Icon(Icons.restaurant),
               title: const Text('Set Restaurant'),
               onTap: _showSetRestaurantDialog,
+            ),
+            ListTile(
+              leading: const Icon(Icons.devices),
+              title: const Text('Devices'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => Devices(),
+                  ),
+                );
+              },
             ),
           ],
         ),
