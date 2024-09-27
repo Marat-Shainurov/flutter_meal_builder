@@ -125,4 +125,43 @@ class OdooService {
       throw Exception('Failed to fetch weighing records');
     }
   }
+
+  Future<Map<String, String>> updateWeighingSKU(
+      String sessionId,
+      String weighingIdentifier,
+      String skuIdentifier,
+      dynamic weightValue,
+      dynamic isLast) async {
+    final headers = {
+      "Cookie": "session_id=$sessionId",
+      'Content-Type': 'application/json',
+    };
+
+    final data = {
+      "weighing_identifier": weighingIdentifier,
+      "sku_identifier": skuIdentifier,
+      "weight_value": weightValue,
+      "is_last": isLast
+    };
+
+    final updateResponse = await http.post(
+      Uri.parse('$baseUrl/api/update_weighing_sku'),
+      headers: headers,
+      body: json.encode(data),
+    );
+
+    if (updateResponse.statusCode == 200) {
+      final updateData = json.decode(updateResponse.body);
+
+      // Accept any value types and convert them to strings
+      if (updateData is Map<String, dynamic>) {
+        return updateData.map((key, value) => MapEntry(key, value.toString()));
+      } else {
+        throw Exception("Unexpected response format: ${updateResponse.body}");
+      }
+    } else {
+      throw Exception(
+          'Failed to update weighing SKU, Status Code: ${updateResponse.statusCode}');
+    }
+  }
 }

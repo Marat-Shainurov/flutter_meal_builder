@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animation_progress_bar/flutter_animation_progress_bar.dart';
+import 'package:flutter_meal_builder/services/odoo_service.dart';
+import 'package:flutter_meal_builder/screens/weighing/weighing_home.dart';
 
 class WeighingProcess extends StatefulWidget {
   final dynamic record; // Weighing record passed from Weighing widget
@@ -13,35 +16,116 @@ class _WeighingProcessState extends State<WeighingProcess> {
   int currentIndex = 0;
   TextEditingController weightController = TextEditingController();
   Map<String, Map<String, dynamic>> weighingProcess = {};
+  double _progressValue = 0;
+  final OdooService odooService = OdooService('https://evo.migom.cloud');
 
   @override
   void initState() {
     super.initState();
+    weightController.addListener(_updateProgressBar);
+    // Skip already weighed SKUs on initialization
+    _skipWeighedSKUs();
   }
 
-  void _nextSKU() {
+// Method to skip SKUs that have already been weighed
+  void _skipWeighedSKUs() {
+    while (currentIndex < widget.record['items'].length &&
+        widget.record['items'][currentIndex]['fact'] != 0) {
+      currentIndex++; // Skip to next SKU if 'fact' is not 0
+    }
+  }
+
+  void _updateProgressBar() {
+    final currentItem = widget.record['items'][currentIndex];
+    double weight = double.tryParse(weightController.text) ?? 0;
+    double expectation = currentItem['expectation'];
+    double maxBarValue = expectation * 1.05;
+    setState(() {
+      // _progressValue = (weight / maxBarValue) * 100;
+      _progressValue = weight;
+    });
+  }
+
+  void _nextSKU() async {
     final currentItem = widget.record['items'][currentIndex];
     final weight = weightController.text;
 
-    setState(() {
-      // Store the current SKU's weight
-      weighingProcess[currentItem['sku_identifier']] = {
-        'name': currentItem['sku'],
-        'value': weight
-      };
-      // Move to the next SKU if available
-      if (currentIndex < widget.record['items'].length - 1) {
-        currentIndex++;
-      }
-      weightController.clear();
-      print(weighingProcess);
-    });
+    try {
+      final sessionId = await odooService.fetchSessionId();
+
+      await odooService.updateWeighingSKU(
+        sessionId,
+        widget.record['identifier'],
+        currentItem['sku_identifier'],
+        double.parse(weight),
+        currentIndex == widget.record['items'].length - 1,
+      );
+
+      setState(() {
+        weighingProcess[currentItem['sku_identifier']] = {
+          'name': currentItem['sku'],
+          'value': weight,
+        };
+
+        // If this was the last SKU, show a popup and navigate to Weighing widget
+        if (currentIndex == widget.record['items'].length - 1) {
+          _showCompletionDialog();
+        } else {
+          currentIndex++;
+          _skipWeighedSKUs();
+          weightController.clear();
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update SKU: $e')),
+      );
+    }
+  }
+
+  void _showCompletionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Weighing Complete!'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close the dialog
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) =>
+                          Weighing()), // Navigate to Weighing widget
+                );
+              },
+              child: Text('Ok'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Color _getProgressBarColor(double weight, double expectation) {
+    if (weight > expectation * 1.05) {
+      return Colors.red;
+    } else if (weight < expectation * 0.5) {
+      return Colors.yellow;
+    } else if (weight < expectation * 0.95) {
+      return Colors.orange;
+    } else {
+      return Colors.green;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final currentItem = widget.record['items'][currentIndex];
     final int totalItems = widget.record['items'].length;
+    double expectation = currentItem['expectation'];
+    double weight = double.tryParse(weightController.text) ?? 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -70,7 +154,7 @@ class _WeighingProcessState extends State<WeighingProcess> {
           children: [
             // Display SKU info and quantity
             Text(
-              '${currentItem['qty']} x ${currentItem['sku']}',
+              '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -93,11 +177,19 @@ class _WeighingProcessState extends State<WeighingProcess> {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+            // Progress bar based on weight input
+            FAProgressBar(
+              currentValue: _progressValue,
+              maxValue: currentItem['expectation'] * 1.05,
+              displayText: ' g',
+              progressColor: _getProgressBarColor(weight, expectation),
+              backgroundColor: Colors.grey[300]!,
+              animatedDuration: const Duration(milliseconds: 400),
+            ),
           ],
         ),
       ),
-
-      // 'Next' button with Previous and Next text beside it
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Container(
@@ -127,9 +219,15 @@ class _WeighingProcessState extends State<WeighingProcess> {
               SizedBox(
                 width: 150, // Button size
                 child: ElevatedButton(
-                  onPressed: _nextSKU,
+                  onPressed: (weight >= expectation * 0.95 &&
+                          weight <= expectation * 1.05)
+                      ? _nextSKU
+                      : null, // Disable button if weight is not in green zone
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[500], // Blue background
+                    backgroundColor: (weight >= expectation * 0.95 &&
+                            weight <= expectation * 1.05)
+                        ? Colors.blue[500]
+                        : Colors.grey, // Grey out if disabled
                     padding: const EdgeInsets.symmetric(
                         vertical: 16.0), // Button padding
                   ),
