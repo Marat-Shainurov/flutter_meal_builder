@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_meal_builder/services/odoo_service.dart';
+import 'package:flutter_meal_builder/screens/weighing/weighing_process.dart';
 import 'package:flutter_meal_builder/services/utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -108,8 +109,13 @@ class _WeighingState extends State<Weighing> {
                         trailing: IconButton(
                           icon: const Icon(Icons.scale),
                           onPressed: () {
-                            // Handle weighing record details display
-                            _showWeighingRecordDetails(record);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    WeighingProcess(record: record),
+                              ),
+                            );
                           },
                         ),
                       ),

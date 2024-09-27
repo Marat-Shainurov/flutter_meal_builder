@@ -95,7 +95,6 @@ class _HomeState extends State<Home> {
         orders = fetchedOrders;
         isLoading = false;
       });
-      print('Fetched orders: $orders');
     } catch (e) {
       setState(() {
         isLoading = false;
