@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
 
 class Devices extends StatefulWidget {
   const Devices({super.key});
@@ -12,12 +15,29 @@ class Devices extends StatefulWidget {
 class _DevicesState extends State<Devices> {
   List<String> availableDevices = [];
   String weight = '';
+  File? logFile;
 
   @override
   void initState() {
     super.initState();
+    _initializeLogFile();
     _scanDevices();
     // _requestPermissions();
+  }
+
+  Future<void> _initializeLogFile() async {
+    // Get the directory path where the log file will be stored
+    Directory appDocDirectory = await getApplicationDocumentsDirectory();
+    String logFilePath = '${appDocDirectory.path}/scale_logs.txt';
+    logFile = File(logFilePath);
+    await logFile?.writeAsString('Log initialized on ${DateTime.now()}\n');
+    print('Log file initialized at: $logFilePath');
+  }
+
+  Future<void> _writeToLogFile(String message) async {
+    if (logFile != null) {
+      await logFile!.writeAsString('$message\n', mode: FileMode.append);
+    }
   }
 
   // Future<void> _requestPermissions() async {
@@ -42,6 +62,7 @@ class _DevicesState extends State<Devices> {
       // Get list of all available USB serial devices
       availableDevices = SerialPort.availablePorts;
       print('availableDevices ******** $availableDevices');
+      _writeToLogFile('Available devices: $availableDevices');
     });
   }
 
@@ -66,45 +87,79 @@ class _DevicesState extends State<Devices> {
     );
   }
 
-  // Method to connect to the device and show a popup with weight data
   void _connectToDevice(String port) async {
     try {
       final SerialPort serialPort = SerialPort(port);
       if (serialPort.openReadWrite()) {
-        print('Connected to $port');
+        _writeToLogFile('Connected to $port');
 
-        // Set up a reader to continuously read from the port
+        var config = SerialPortConfig();
+        config.baudRate = 9600;
+        config.bits = 8;
+        config.parity = SerialPortParity.none;
+        config.stopBits = 1;
+
+        serialPort.config = config;
+        _writeToLogFile(
+            'Serial Port Config: BaudRate: ${config.baudRate}, Bits: ${config.bits}, Parity: ${config.parity}, StopBits: ${config.stopBits}');
+        config.dispose();
+        _writeToLogFile(
+            'Serial Port Config after dispose(): BaudRate: ${config.baudRate}, Bits: ${config.bits}, Parity: ${config.parity}, StopBits: ${config.stopBits}');
+
         final reader = SerialPortReader(serialPort);
-
-        // Listen to the incoming data stream from the serial device
         reader.stream.listen((data) {
-          // Assuming the scale sends weight data as bytes, we decode it to a string
-          final weight = String.fromCharCodes(data);
-          print('Received weight: $weight');
+          _logDataInfo(data); // Log data information
 
-          // Show the weight in a dialog
-          _showWeightDialog(weight);
+          final decodedData = String.fromCharCodes(data);
+          _writeToLogFile('Decoded data (assuming ASCII): $decodedData');
+
+          // Detect if the data might not be ASCII
+          if (!_isASCII(data)) {
+            _writeToLogFile('Warning: Non-ASCII data detected.');
+          }
+
+          _showWeightDialog(decodedData);
         });
       } else {
-        print('Failed to open port: $port');
+        _writeToLogFile('Failed to open port: $port');
       }
     } catch (e) {
-      print('Error: $e');
+      _writeToLogFile('Error: $e');
     }
   }
 
-  // Show the weight data in a popup dialog
-  void _showWeightDialog(String weight) {
+  void _logDataInfo(Uint8List data) {
+    _writeToLogFile('Raw byte data: $data');
+    for (var byte in data) {
+      _writeToLogFile(
+          'Byte: $byte (${byte.toRadixString(16).toUpperCase()} in hex)');
+    }
+  }
+
+// Check if the data is ASCII
+  bool _isASCII(Uint8List data) {
+    return data
+        .every((byte) => byte >= 32 && byte <= 126); // Printable ASCII range
+  }
+
+  void _showWeightDialog(String decodedData) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Weight Data'),
-          content: Text('Weight: $weight'),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Weight: $decodedData',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 10),
+            ],
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
               child: Text('OK'),
             ),
@@ -112,20 +167,6 @@ class _DevicesState extends State<Devices> {
         );
       },
     );
+    _writeToLogFile('Displayed weight: $decodedData');
   }
 }
-  // void _connectToDevice(String port) {
-  //   try {
-  //     final SerialPort serialPort = SerialPort(port);
-  //     if (serialPort.openReadWrite()) {
-  //       print('Connected to $port');
-  //       // Once connected, you can start receiving data from the scale here
-  //     } else {
-  //       print('Failed to open port: $port');
-  //     }
-  //   } catch (e) {
-  //     print('Error: $e');
-  //   }
-  // }
-
-
