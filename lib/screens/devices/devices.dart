@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
+import 'dart:convert';
 
 class Devices extends StatefulWidget {
   const Devices({super.key});
@@ -39,23 +39,6 @@ class _DevicesState extends State<Devices> {
       await logFile!.writeAsString('$message\n', mode: FileMode.append);
     }
   }
-
-  // Future<void> _requestPermissions() async {
-  //   // Request location permission
-  //   if (await Permission.location.request().isGranted) {
-  //     // Request USB permission
-  //     if (await Permission.manageExternalStorage.request().isGranted) {
-  //       // Permissions are granted, proceed with scanning devices
-  //       _scanDevices();
-  //     } else {
-  //       // Handle USB permission denied
-  //       print("USB permission denied");
-  //     }
-  //   } else {
-  //     // Handle location permission denied
-  //     print("Location permission denied");
-  //   }
-  // }
 
   void _scanDevices() {
     setState(() {
@@ -93,32 +76,49 @@ class _DevicesState extends State<Devices> {
       if (serialPort.openReadWrite()) {
         _writeToLogFile('Connected to $port');
 
-        var config = SerialPortConfig();
-        config.baudRate = 9600;
-        config.bits = 8;
-        config.parity = SerialPortParity.none;
-        config.stopBits = 1;
+        // var config = SerialPortConfig();
+        // config.baudRate = 9600;
+        // config.bits = 8;
+        // config.parity = SerialPortParity.none;
+        // config.stopBits = 1;
+        // config.setFlowControl(SerialPortFlowControl.none);
 
+        // serialPort.config = config;
+        // _writeToLogFile(
+        //     'Serial Port Config: BaudRate: ${config.baudRate}, Bits: ${config.bits}, Parity: ${config.parity}, StopBits: ${config.stopBits}');
+        // config.dispose();
+
+        var config = SerialPortConfig()
+          ..baudRate = 9600
+          ..bits = 8
+          ..parity = SerialPortParity.none
+          ..stopBits = 1
+          ..xonXoff = 0
+          ..rts = 1
+          ..cts = 0
+          ..dsr = 0
+          ..dtr = 1;
         serialPort.config = config;
-        _writeToLogFile(
-            'Serial Port Config: BaudRate: ${config.baudRate}, Bits: ${config.bits}, Parity: ${config.parity}, StopBits: ${config.stopBits}');
         config.dispose();
-        _writeToLogFile(
-            'Serial Port Config after dispose(): BaudRate: ${config.baudRate}, Bits: ${config.bits}, Parity: ${config.parity}, StopBits: ${config.stopBits}');
 
-        final reader = SerialPortReader(serialPort);
+        final reader = SerialPortReader(serialPort, timeout: 3000);
         reader.stream.listen((data) {
-          _logDataInfo(data); // Log data information
+          try {
+            final decodedData = String.fromCharCodes(data);
+            _writeToLogFile('Decoded data: $decodedData');
+            _writeToLogFile('Raw data: $data');
 
-          final decodedData = String.fromCharCodes(data);
-          _writeToLogFile('Decoded data (assuming ASCII): $decodedData');
+            // if (!_isASCII(data)) {
+            //   _writeToLogFile('Warning: Non-ASCII data detected.');
+            //   // _logPossibleDataTypes(
+            //   //     data); // Log possible non-ASCII data formats
+            // }
 
-          // Detect if the data might not be ASCII
-          if (!_isASCII(data)) {
-            _writeToLogFile('Warning: Non-ASCII data detected.');
+            _showWeightDialog(decodedData);
+          } catch (e) {
+            // Log any errors during decoding
+            _writeToLogFile('Error decoding data: $e');
           }
-
-          _showWeightDialog(decodedData);
         });
       } else {
         _writeToLogFile('Failed to open port: $port');
@@ -129,17 +129,58 @@ class _DevicesState extends State<Devices> {
   }
 
   void _logDataInfo(Uint8List data) {
+    // Log the raw byte data before any decoding
     _writeToLogFile('Raw byte data: $data');
     for (var byte in data) {
       _writeToLogFile(
           'Byte: $byte (${byte.toRadixString(16).toUpperCase()} in hex)');
     }
+
+    // Log the length of the data received
+    _writeToLogFile('Data length: ${data.length}');
   }
 
 // Check if the data is ASCII
   bool _isASCII(Uint8List data) {
     return data
         .every((byte) => byte >= 32 && byte <= 126); // Printable ASCII range
+  }
+
+// Log possible data types if non-ASCII data is detected
+  void _logPossibleDataTypes(Uint8List data) {
+    // Log as hexadecimal
+    String hexString =
+        data.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(' ');
+    _writeToLogFile('Data in hex: $hexString');
+
+    // Log as binary
+    String binaryString =
+        data.map((byte) => byte.toRadixString(2).padLeft(8, '0')).join(' ');
+    _writeToLogFile('Data in binary: $binaryString');
+
+    // Try decoding as UTF-8 (in case it's a different text encoding)
+    try {
+      String utf8Data = utf8.decode(data);
+      _writeToLogFile('Decoded data (UTF-8): $utf8Data');
+    } catch (e) {
+      _writeToLogFile('Failed to decode data as UTF-8: $e');
+    }
+
+    // Log a possible integer interpretation (e.g., weight could be encoded as integers)
+    if (data.length >= 2) {
+      int integerValue = _parseInteger(data);
+      _writeToLogFile('Interpreted data as integer: $integerValue');
+    }
+  }
+
+// Helper function to parse integer values from the byte array
+  int _parseInteger(Uint8List data) {
+    // Assume big-endian and 16-bit or 32-bit integer based on data length
+    int result = 0;
+    for (var byte in data) {
+      result = (result << 8) | byte;
+    }
+    return result;
   }
 
   void _showWeightDialog(String decodedData) {
