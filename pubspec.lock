@@ -110,6 +110,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.2"
+  flutter_serial_communication:
+    dependency: "direct main"
+    description:
+      name: flutter_serial_communication
+      sha256: a38f39c1e513777389f393bbc1352ce5b20e41d624c1b6eb8c0a30a34bcd3752
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.7"
   flutter_sunmi_printer_plus:
     dependency: "direct main"
     description:
