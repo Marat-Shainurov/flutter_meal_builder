@@ -13,12 +13,14 @@ class Devices extends StatefulWidget {
 
 class _DevicesState extends State<Devices> {
   List<DeviceInfo> availableDevices = [];
-  String weight = '';
-  String rawDataString = '';
-  bool isPopupVisible = false;
+  String weight = ''; // To hold the decoded weight data
+  String rawDataString = ''; // To hold raw data as a string
   File? logFile;
   final _flutterSerialCommunicationPlugin = FlutterSerialCommunication();
   bool isConnected = false;
+
+  // Buffer to accumulate incoming data
+  List<int> buffer = [];
 
   @override
   void initState() {
@@ -76,66 +78,39 @@ class _DevicesState extends State<Devices> {
         // Raw data from the scales
         Uint8List rawData = event;
 
-        // Decoded data (interpreted as string/weight)
-        String decodedData = String.fromCharCodes(rawData);
+        // Append received data to buffer
+        buffer.addAll(rawData);
 
-        // Ensure decodedData is valid and contains weight data
-        if (decodedData.trim().isNotEmpty) {
+        // Process the buffer when we encounter 'g' (ASCII 67 or 0x67)
+        int gIndex = buffer.indexWhere((byte) => byte == 0x67);
+
+        if (gIndex != -1) {
+          // If 'g' is found, extract everything up to and including 'g'
+          Uint8List messageBytes =
+              Uint8List.fromList(buffer.sublist(0, gIndex + 1));
+
+          // Remove the processed bytes from the buffer
+          buffer.removeRange(0, gIndex + 1);
+
+          // Decode the message
+          String decodedData = String.fromCharCodes(messageBytes);
+
+          // Update the state to display the decoded and raw data
           setState(() {
             weight = decodedData;
-            rawDataString = rawData
+            rawDataString = messageBytes
                 .map((e) => e.toRadixString(16).padLeft(2, '0'))
                 .join(' ');
           });
+        }
 
-          // Show or update the weight dialog with throttling
-          if (!isPopupVisible) {
-            _showWeightDialog(decodedData, rawData);
-          } else {
-            // Update the popup contents if already visible
-            Navigator.of(context).pop(); // Close previous popup
-            _showWeightDialog(decodedData, rawData); // Open new popup
-          }
+        if (buffer.length > 40) {
+          buffer.clear(); // Clear buffer if it exceeds the limit
         }
       } catch (e) {
         print('Error decoding data: $e');
       }
     });
-  }
-
-  void _showWeightDialog(String decodedData, Uint8List rawData) {
-    // Mark the popup as visible
-    isPopupVisible = true;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Prevent accidental dismissals
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text("Weight"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text("Decoded Weight: $decodedData"),
-              SizedBox(height: 16.0),
-              Text(
-                  "Raw Data: ${rawData.map((e) => e.toRadixString(16).padLeft(2, '0')).join(' ')}"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              child: Text("Close"),
-              onPressed: () {
-                isPopupVisible = false; // Mark the popup as closed
-                Navigator.of(context).pop(); // Close the dialog
-              },
-            ),
-          ],
-        );
-      },
-    );
-    print(
-        'Displayed weight: $decodedData, Raw Data: ${rawData.map((e) => e.toRadixString(16).padLeft(2, '0')).join(' ')}');
   }
 
   @override
@@ -144,16 +119,41 @@ class _DevicesState extends State<Devices> {
       appBar: AppBar(
         title: Text('Available Devices'),
       ),
-      body: ListView.builder(
-        itemCount: availableDevices.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(availableDevices[index].productName),
-            onTap: () {
-              _connectToDevice(availableDevices[index]);
-            },
-          );
-        },
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              itemCount: availableDevices.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(availableDevices[index].productName),
+                  onTap: () {
+                    _connectToDevice(availableDevices[index]);
+                  },
+                );
+              },
+            ),
+          ),
+          // Display weight and raw data at the bottom of the screen
+          Container(
+            padding: EdgeInsets.all(16.0),
+            color: Colors.grey[200],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Decoded Weight: $weight',
+                  style: TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8.0),
+                Text(
+                  'Raw Data: $rawDataString',
+                  style: TextStyle(fontSize: 14.0, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
