@@ -126,7 +126,7 @@ class OdooService {
     }
   }
 
-  Future<Map<String, String>> updateWeighingSKU(
+  Future<Map<String, dynamic>> updateWeighingSKU(
       String sessionId,
       String weighingIdentifier,
       String skuIdentifier,
