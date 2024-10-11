@@ -164,4 +164,33 @@ class OdooService {
           'Failed to update weighing SKU, Status Code: ${updateResponse.statusCode}');
     }
   }
+
+  Future<dynamic> fetchKitchenWeighing(
+      String sessionId, dynamic kitchenOrderId) async {
+    final headers = {
+      "Cookie": "session_id=$sessionId",
+      'Content-Type': 'application/json',
+    };
+
+    Map<String, dynamic> data = {"kitchen_order_identifier": kitchenOrderId};
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/get_kitchen_weighing'),
+      headers: headers,
+      body: json.encode(data),
+    );
+
+    if (response.statusCode == 200) {
+      final weighingData = json.decode(response.body);
+      if (weighingData['identifier'] != null) {
+        return weighingData;
+      } else {
+        print("Wieghing fetching error: ${response.body}");
+        throw Exception('Wieghing fetching error: ${response.body}');
+      }
+    } else {
+      throw Exception(
+          'Failed to fetch kitchen weighing, Status Code: ${response.statusCode}');
+    }
+  }
 }
