@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_meal_builder/services/odoo_service.dart';
 import 'package:flutter_meal_builder/screens/weighing/weighing_home.dart';
+import 'package:flutter_meal_builder/screens/weighing/kitchen_weighing.dart';
 import 'package:flutter_meal_builder/services/utils.dart';
 import 'package:flutter_sunmi_printer_plus/flutter_sunmi_printer_plus.dart';
 import 'package:flutter_sunmi_printer_plus/enums.dart';
@@ -30,6 +31,7 @@ class _HomeState extends State<Home> {
   String errorMessage = '';
   String? restaurantId;
   String? restaurantName;
+  Map<dynamic, dynamic> weighingRecord = {};
   // Timer? _timer; // Timer instance
 
   @override
@@ -40,6 +42,43 @@ class _HomeState extends State<Home> {
     _fetchSessionAndOrders();
     // _startAutoRefresh(); // Start the periodic refresh
     print('Current restaurantName: ${restaurantName}');
+  }
+
+  Future<void> _startKitchenWeighing(dynamic order) async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final sessionId = await odooService.fetchSessionId();
+      dynamic kitchenOrderId = order['identifier'];
+
+      final weighingRecord =
+          await odooService.fetchKitchenWeighing(sessionId, kitchenOrderId);
+
+      if (weighingRecord != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                KitchenWeighingProcess(record: weighingRecord),
+          ),
+        );
+      } else {
+        setState(() {
+          errorMessage = "No weighing record found for this order.";
+        });
+      }
+    } catch (error) {
+      setState(() {
+        errorMessage = "Error fetching weighing record: $error";
+      });
+      print('Error fetching kitchen weighing: $error');
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   // Future<void> _initializePrinter() async {
@@ -384,11 +423,22 @@ class _HomeState extends State<Home> {
                             style:
                                 const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text('$formattedDate, $timeAgo'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.print),
-                          onPressed: () {
-                            _printOrderDetails(order);
-                          },
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.scale),
+                              onPressed: () {
+                                _startKitchenWeighing(order);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.print),
+                              onPressed: () {
+                                _printOrderDetails(order);
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     );
