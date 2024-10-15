@@ -44,7 +44,7 @@ class _WeighingState extends State<Weighing> {
     });
     try {
       final sessionId = await odooService.fetchSessionId();
-      final records = await odooService.fetchWeighingRecords(sessionId);
+      final records = await odooService.fetchStockWeighingRecords(sessionId);
       setState(() {
         weighingRecords = records;
         isLoading = false;
@@ -122,35 +122,6 @@ class _WeighingState extends State<Weighing> {
                     );
                   },
                 ),
-    );
-  }
-
-  Future<void> _showWeighingRecordDetails(dynamic record) async {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Weighing Record ${record['name']}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: record['items'].map<Widget>((item) {
-              return ListTile(
-                title: Text(item['sku']),
-                subtitle: Text(
-                    'Expectation: ${item['expectation']}, Fact: ${item['fact']}'),
-              );
-            }).toList(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
     );
   }
 }
