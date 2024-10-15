@@ -126,7 +126,70 @@ class OdooService {
     }
   }
 
+  Future<dynamic> fetchStockWeighingRecords(String sessionId) async {
+    final headers = {"Cookie": "session_id=$sessionId"};
+    final weighingResponse = await http.post(
+      Uri.parse('$baseUrl/api/stock_weighing_records'),
+      headers: headers,
+    );
+
+    if (weighingResponse.statusCode == 200) {
+      final weighingData = json.decode(weighingResponse.body);
+      if (weighingData is List) {
+        return weighingData;
+      } else {
+        print('Failed to load stock weighing records');
+        return [];
+      }
+    } else {
+      throw Exception('Failed to fetch stock weighing records');
+    }
+  }
+
   Future<Map<String, dynamic>> updateWeighingSKU(
+      String sessionId,
+      String weighingIdentifier,
+      String skuIdentifier,
+      dynamic weightValue,
+      dynamic startWeight,
+      dynamic endWeight,
+      dynamic isLast) async {
+    final headers = {
+      "Cookie": "session_id=$sessionId",
+      'Content-Type': 'application/json',
+    };
+
+    final data = {
+      "weighing_identifier": weighingIdentifier,
+      "sku_identifier": skuIdentifier,
+      "weight_value": weightValue,
+      "start_weight": startWeight,
+      "end_weight": endWeight,
+      "is_last": isLast
+    };
+
+    final updateResponse = await http.post(
+      Uri.parse('$baseUrl/api/update_weighing_sku'),
+      headers: headers,
+      body: json.encode(data),
+    );
+
+    if (updateResponse.statusCode == 200) {
+      final updateData = json.decode(updateResponse.body);
+
+      // Accept any value types and convert them to strings
+      if (updateData is Map<String, dynamic>) {
+        return updateData.map((key, value) => MapEntry(key, value.toString()));
+      } else {
+        throw Exception("Unexpected response format: ${updateResponse.body}");
+      }
+    } else {
+      throw Exception(
+          'Failed to update weighing SKU, Status Code: ${updateResponse.statusCode}');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateWeighingSKUStock(
       String sessionId,
       String weighingIdentifier,
       String skuIdentifier,
@@ -145,7 +208,7 @@ class OdooService {
     };
 
     final updateResponse = await http.post(
-      Uri.parse('$baseUrl/api/update_weighing_sku'),
+      Uri.parse('$baseUrl/api/update_stock_weighing_sku'),
       headers: headers,
       body: json.encode(data),
     );

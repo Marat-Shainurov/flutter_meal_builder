@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animation_progress_bar/flutter_animation_progress_bar.dart';
 import 'package:flutter_meal_builder/services/odoo_service.dart';
-import 'package:flutter_meal_builder/screens/weighing/weighing_home.dart';
-import 'dart:io';
+import 'package:flutter_meal_builder/screens/home/home.dart';
 import 'package:flutter_serial_communication/flutter_serial_communication.dart';
 import 'package:flutter_serial_communication/models/device_info.dart';
 import 'dart:typed_data';
@@ -18,6 +17,7 @@ class KitchenWeighingProcess extends StatefulWidget {
 }
 
 class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
+  bool isLoading = false;
   int currentIndex = 0;
   TextEditingController weightController = TextEditingController();
   Map<String, Map<String, dynamic>> weighingProcess = {};
@@ -31,6 +31,10 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
   String rawDataString = ''; // To hold raw data as a string
   List<int> buffer = []; // Buffer to accumulate incoming data
   String deviceName = 'No device found';
+  double startWeight = 0; // Start weight for the current SKU
+  double accumulatedWeight = 0; // Total accumulated weight
+
+  bool getFromScales = false; // To manage the checkbox
 
   @override
   void initState() {
@@ -108,6 +112,11 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
             rawDataString = messageBytes
                 .map((e) => e.toRadixString(16).padLeft(2, '0'))
                 .join(' ');
+
+            // Automatically apply the weight if the checkbox is checked
+            if (getFromScales) {
+              weightController.text = decodedWeight.replaceAll('g', '').trim();
+            }
           });
         }
 
@@ -124,8 +133,14 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
   void _skipWeighedSKUs() {
     while (currentIndex < widget.record['items'].length &&
         widget.record['items'][currentIndex]['fact'] != 0) {
+      accumulatedWeight += widget.record['items'][currentIndex]['fact'];
       currentIndex++; // Skip to next SKU if 'fact' is not 0
     }
+    setState(() {
+      startWeight =
+          accumulatedWeight; // Set startWeight for the next unweighed SKU
+      currentTotalWeight = widget.record['current_total_weight'];
+    });
   }
 
   // Update progress bar based on the current weight and total weight
@@ -141,9 +156,14 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
   }
 
   void _nextSKU() async {
+    setState(() {
+      isLoading = true;
+    });
     if (currentIndex < widget.record['items'].length) {
       final currentItem = widget.record['items'][currentIndex];
-      final weight = weightController.text;
+      final weight = double.tryParse(weightController.text) ?? 0;
+
+      double endWeight = startWeight + weight;
 
       try {
         final sessionId = await odooService.fetchSessionId();
@@ -152,14 +172,15 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
           sessionId,
           widget.record['identifier'],
           currentItem['sku_identifier'],
-          double.parse(weight),
+          weight,
+          startWeight,
+          endWeight,
           currentIndex == widget.record['items'].length - 1,
         );
 
+        print('updateWeighingResponse $updateWeighingResponse');
         // Extract the current total weight from the response
         setState(() {
-          currentTotalWeight = updateWeighingResponse['current_total_weight'];
-
           weighingProcess[currentItem['sku_identifier']] = {
             'name': currentItem['sku'],
             'value': weight,
@@ -170,13 +191,25 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
           } else {
             currentIndex++;
             _skipWeighedSKUs();
+            accumulatedWeight = endWeight;
+            startWeight = accumulatedWeight;
             weightController.clear();
           }
+
+          setState(() {
+            currentTotalWeight = updateWeighingResponse['current_total_weight'];
+          });
+          setState(() {
+            isLoading = false;
+          });
         });
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to update SKU: $e')),
         );
+        setState(() {
+          isLoading = false;
+        });
       }
     }
   }
@@ -195,7 +228,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
                   context,
                   MaterialPageRoute(
                       builder: (context) =>
-                          Weighing()), // Navigate to Weighing widget
+                          Home()), // Navigate to Weighing widget
                 );
               },
               child: Text('Ok'),
@@ -244,62 +277,95 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Display SKU info and quantity
-            Text(
-              '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            Center(
-              child: SizedBox(
-                width: 180, // Set the desired width to be narrower
-                child: TextField(
-                  controller: weightController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Enter weight',
-                    border: OutlineInputBorder(),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Checkbox to toggle 'Get data from scales'
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Checkbox(
+                        value: getFromScales,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            getFromScales = value ?? false;
+                          });
+                        },
+                      ),
+                      const Text('Get data from scales'),
+                    ],
                   ),
-                ),
+                  // Display SKU info and quantity
+                  Text(
+                    '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  Visibility(
+                    visible:
+                        !getFromScales, // Show the widget only if getFromScales is true
+                    child: Center(
+                      child: SizedBox(
+                        width: 180, // Set the desired width to be narrower
+                        child: TextField(
+                          controller: weightController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Enter weight',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  FAProgressBar(
+                    currentValue: _progressValue,
+                    maxValue: currentItem['expectation'] * 1.05,
+                    displayText: ' g',
+                    progressColor: _getProgressBarColor(weight, expectation),
+                    backgroundColor: Colors.grey[300]!,
+                    animatedDuration: const Duration(milliseconds: 400),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Current total weight from scales: $decodedWeight',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+
+                  Text(
+                    'Current SKU weight: ${decodedWeight.isNotEmpty ? ((double.tryParse(decodedWeight.replaceAll('g', '').trim()) ?? 0.0) - (currentTotalWeight ?? 0.0)) : 'N/A'} g',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+
+                  Visibility(
+                    visible:
+                        !getFromScales, // Show the widget only if getFromScales is true
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          weightController.text =
+                              decodedWeight.replaceAll('g', '');
+                        });
+                      },
+                      child: const Text('Apply from scales'),
+                    ),
+                  )
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            FAProgressBar(
-              currentValue: _progressValue,
-              maxValue: currentItem['expectation'] * 1.05,
-              displayText: ' g',
-              progressColor: _getProgressBarColor(weight, expectation),
-              backgroundColor: Colors.grey[300]!,
-              animatedDuration: const Duration(milliseconds: 400),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Current weight from scales: $decodedWeight',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  weightController.text = decodedWeight.replaceAll('g', '');
-                });
-              },
-              child: const Text('Apply from scales'),
-            ),
-          ],
-        ),
-      ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Container(

@@ -16,6 +16,7 @@ class WeighingProcess extends StatefulWidget {
 }
 
 class _WeighingProcessState extends State<WeighingProcess> {
+  bool isLoading = false;
   int currentIndex = 0;
   TextEditingController weightController = TextEditingController();
   Map<String, Map<String, dynamic>> weighingProcess = {};
@@ -137,6 +138,9 @@ class _WeighingProcessState extends State<WeighingProcess> {
   }
 
   void _nextSKU() async {
+    setState(() {
+      isLoading = true;
+    });
     final currentItem = widget.record['items'][currentIndex];
     final weight = weightController.text;
 
@@ -165,8 +169,14 @@ class _WeighingProcessState extends State<WeighingProcess> {
           _skipWeighedSKUs();
           weightController.clear();
         }
+        setState(() {
+          isLoading = false;
+        });
       });
     } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to update SKU: $e')),
       );
@@ -236,64 +246,67 @@ class _WeighingProcessState extends State<WeighingProcess> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Display SKU info and quantity
-            Text(
-              '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            // Centered Weight input field with a small width
-            Center(
-              child: SizedBox(
-                width: 180, // Set the desired width to be narrower
-                child: TextField(
-                  controller: weightController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Enter weight',
-                    border: OutlineInputBorder(),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Display SKU info and quantity
+                  Text(
+                    '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
+                  const SizedBox(height: 20),
+                  // Centered Weight input field with a small width
+                  Center(
+                    child: SizedBox(
+                      width: 180, // Set the desired width to be narrower
+                      child: TextField(
+                        controller: weightController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Enter weight',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Progress bar based on weight input
+                  FAProgressBar(
+                    currentValue: _progressValue,
+                    maxValue: currentItem['expectation'] * 1.05,
+                    displayText: ' g',
+                    progressColor: _getProgressBarColor(weight, expectation),
+                    backgroundColor: Colors.grey[300]!,
+                    animatedDuration: const Duration(milliseconds: 400),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Current total weight from scales: $decodedWeight',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        weightController.text =
+                            decodedWeight.replaceAll('g', '');
+                      });
+                    },
+                    child: const Text('Apply from scales'),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            // Progress bar based on weight input
-            FAProgressBar(
-              currentValue: _progressValue,
-              maxValue: currentItem['expectation'] * 1.05,
-              displayText: ' g',
-              progressColor: _getProgressBarColor(weight, expectation),
-              backgroundColor: Colors.grey[300]!,
-              animatedDuration: const Duration(milliseconds: 400),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Current total weight from scales: $decodedWeight',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  weightController.text = decodedWeight.replaceAll('g', '');
-                });
-              },
-              child: const Text('Apply from scales'),
-            ),
-          ],
-        ),
-      ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Container(
