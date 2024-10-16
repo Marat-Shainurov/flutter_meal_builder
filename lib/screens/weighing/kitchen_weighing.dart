@@ -16,7 +16,8 @@ class KitchenWeighingProcess extends StatefulWidget {
   _KitchenWeighingProcessState createState() => _KitchenWeighingProcessState();
 }
 
-class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
+class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
+    with WidgetsBindingObserver {
   bool isLoading = false;
   int currentIndex = 0;
   TextEditingController weightController = TextEditingController();
@@ -39,12 +40,35 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeWidget();
+  }
+
+  void _initializeWidget() {
     weightController.addListener(_updateProgressBar);
     // Skip already weighed SKUs on initialization
     _skipWeighedSKUs();
-
     // Initiate connection to USB-Serial Controller
     _connectToUSBSerialController();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    weightController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      // App is closing or being minimized
+      _disconnectFromUSBSerialController();
+    } else if (state == AppLifecycleState.resumed) {
+      // Reinitialize when app comes back to the foreground
+      _initializeWidget();
+    }
   }
 
   // Method to connect to 'USB-Serial Controller'
@@ -85,6 +109,23 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
         deviceName = 'Connection error';
       });
       print('Error connecting to device: $e');
+    }
+  }
+
+  void _disconnectFromUSBSerialController() async {
+    if (isConnected) {
+      try {
+        await _flutterSerialCommunicationPlugin.disconnect();
+        setState(() {
+          isConnected = false;
+          deviceName = 'Disconnected';
+        });
+        print('Successfully disconnected');
+      } catch (e) {
+        print('Error during disconnection: $e');
+      }
+    } else {
+      print('Successfully disconnected - no device connected');
     }
   }
 
@@ -187,6 +228,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
           };
 
           if (currentIndex == widget.record['items'].length - 1) {
+            _disconnectFromUSBSerialController();
             _showCompletionDialog(); // Last SKU reached
           } else {
             currentIndex++;
@@ -258,177 +300,186 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess> {
     double expectation = currentItem['expectation'];
     double weight = double.tryParse(weightController.text) ?? 0;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${currentItem['sku']} weighing',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.blue[500],
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Center(
-              child: Text('${currentIndex + 1}/$totalItems',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16)),
+    return PopScope(
+      onPopInvoked: (bool didPop) {
+        _disconnectFromUSBSerialController(); // Disconnect before navigating back
+        return;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('${currentItem['sku']} weighing',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          backgroundColor: Colors.blue[500],
+          centerTitle: true,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Center(
+                child: Text('${currentIndex + 1}/$totalItems',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+              ),
             ),
-          ),
-        ],
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Checkbox to toggle 'Get data from scales'
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Checkbox(
-                        value: getFromScales,
-                        onChanged: (bool? value) {
-                          setState(() {
-                            getFromScales = value ?? false;
-                          });
-                        },
-                      ),
-                      const Text('Get data from scales'),
-                    ],
-                  ),
-                  // Display SKU info and quantity
-                  Text(
-                    '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
+          ],
+        ),
+        body: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Checkbox to toggle 'Get data from scales'
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Checkbox(
+                          value: getFromScales,
+                          onChanged: (bool? value) {
+                            setState(() {
+                              getFromScales = value ?? false;
+                            });
+                          },
+                        ),
+                        const Text('Get data from scales'),
+                      ],
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  Visibility(
-                    visible:
-                        !getFromScales, // Show the widget only if getFromScales is true
-                    child: Center(
-                      child: SizedBox(
-                        width: 180, // Set the desired width to be narrower
-                        child: TextField(
-                          controller: weightController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Enter weight',
-                            border: OutlineInputBorder(),
+                    // Display SKU info and quantity
+                    Text(
+                      '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    Visibility(
+                      visible:
+                          !getFromScales, // Show the widget only if getFromScales is true
+                      child: Center(
+                        child: SizedBox(
+                          width: 180, // Set the desired width to be narrower
+                          child: TextField(
+                            controller: weightController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Enter weight',
+                              border: OutlineInputBorder(),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  FAProgressBar(
-                    currentValue: _progressValue,
-                    maxValue: currentItem['expectation'] * 1.05,
-                    displayText: ' g',
-                    progressColor: _getProgressBarColor(weight, expectation),
-                    backgroundColor: Colors.grey[300]!,
-                    animatedDuration: const Duration(milliseconds: 400),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Current total weight from scales: $decodedWeight',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                    const SizedBox(height: 20),
+                    FAProgressBar(
+                      currentValue: _progressValue,
+                      maxValue: currentItem['expectation'] * 1.05,
+                      displayText: ' g',
+                      progressColor: _getProgressBarColor(weight, expectation),
+                      backgroundColor: Colors.grey[300]!,
+                      animatedDuration: const Duration(milliseconds: 400),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Current total weight from scales: $decodedWeight',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
 
-                  Text(
-                    'Current SKU weight: ${decodedWeight.isNotEmpty ? ((double.tryParse(decodedWeight.replaceAll('g', '').trim()) ?? 0.0) - (currentTotalWeight ?? 0.0)) : 'N/A'} g',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
+                    Text(
+                      'Current SKU weight: ${decodedWeight.isNotEmpty ? ((double.tryParse(decodedWeight.replaceAll('g', '').trim()) ?? 0.0) - (currentTotalWeight ?? 0.0)) : 'N/A'} g',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 20),
 
-                  Visibility(
-                    visible:
-                        !getFromScales, // Show the widget only if getFromScales is true
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          weightController.text =
-                              decodedWeight.replaceAll('g', '');
-                        });
-                      },
-                      child: const Text('Apply from scales'),
+                    Visibility(
+                      visible:
+                          !getFromScales, // Show the widget only if getFromScales is true
+                      child: ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            weightController.text =
+                                decodedWeight.replaceAll('g', '');
+                          });
+                        },
+                        child: const Text('Apply from scales'),
+                      ),
+                    )
+                  ],
+                ),
+              ),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Container(
+            height: 80,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (currentIndex > 0)
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "Previous:\n${widget.record['items'][currentIndex - 1]['sku']} "
+                        "${weighingProcess[widget.record['items'][currentIndex - 1]['sku_identifier']]?['value'] ?? ''} g",
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.left,
+                      ),
                     ),
                   )
-                ],
-              ),
-            ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Container(
-          height: 80,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (currentIndex > 0)
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Previous:\n${widget.record['items'][currentIndex - 1]['sku']} "
-                      "${weighingProcess[widget.record['items'][currentIndex - 1]['sku_identifier']]?['value'] ?? ''} g",
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.left,
-                    ),
-                  ),
-                )
-              else
-                Expanded(child: SizedBox()),
-              SizedBox(
-                width: 150, // Button size
-                child: ElevatedButton(
-                  onPressed: (weight >= expectation * 0.95 &&
-                          weight <= expectation * 1.05)
-                      ? _nextSKU
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: (weight >= expectation * 0.95 &&
+                else
+                  Expanded(child: SizedBox()),
+                SizedBox(
+                  width: 150, // Button size
+                  child: ElevatedButton(
+                    onPressed: (weight >= expectation * 0.95 &&
                             weight <= expectation * 1.05)
-                        ? Colors.blue[500]
-                        : Colors.grey,
-                    padding: const EdgeInsets.symmetric(vertical: 16.0),
-                  ),
-                  child: const Text(
-                    'Next',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                        ? _nextSKU
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: (weight >= expectation * 0.95 &&
+                              weight <= expectation * 1.05)
+                          ? Colors.blue[500]
+                          : Colors.grey,
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    ),
+                    child: const Text(
+                      'Next',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              if (currentIndex < totalItems - 1)
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      "Next:\n${widget.record['items'][currentIndex + 1]['sku']}",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                if (currentIndex < totalItems - 1)
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        "Next:\n${widget.record['items'][currentIndex + 1]['sku']}",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.right,
                       ),
-                      textAlign: TextAlign.right,
                     ),
-                  ),
-                )
-              else
-                Expanded(child: SizedBox()),
-            ],
+                  )
+                else
+                  Expanded(child: SizedBox()),
+              ],
+            ),
           ),
         ),
       ),
