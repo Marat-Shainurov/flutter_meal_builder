@@ -23,7 +23,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
   TextEditingController weightController = TextEditingController();
   Map<String, Map<String, dynamic>> weighingProcess = {};
   double _progressValue = 0;
-  dynamic currentTotalWeight = 0.0;
+  double currentTotalWeight = 0;
   final OdooService odooService = OdooService('https://evo.migom.cloud');
 
   final _flutterSerialCommunicationPlugin = FlutterSerialCommunication();
@@ -147,6 +147,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
           buffer.removeRange(0, gIndex + 1);
 
           String decodedData = String.fromCharCodes(messageBytes);
+          String weightWithoutUnit = decodedData.replaceAll('g', '').trim();
 
           setState(() {
             decodedWeight = decodedData;
@@ -156,7 +157,9 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
 
             // Automatically apply the weight if the checkbox is checked
             if (getFromScales) {
-              weightController.text = decodedWeight.replaceAll('g', '').trim();
+              double receivedWeight = double.tryParse(weightWithoutUnit) ?? 0.0;
+              double adjustedWeight = receivedWeight - currentTotalWeight;
+              weightController.text = adjustedWeight.toStringAsFixed(2);
             }
           });
         }
@@ -219,7 +222,6 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
           currentIndex == widget.record['items'].length - 1,
         );
 
-        print('updateWeighingResponse $updateWeighingResponse');
         // Extract the current total weight from the response
         setState(() {
           weighingProcess[currentItem['sku_identifier']] = {
@@ -239,7 +241,10 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
           }
 
           setState(() {
-            currentTotalWeight = updateWeighingResponse['current_total_weight'];
+            currentTotalWeight = double.tryParse(
+                    updateWeighingResponse['current_total_weight']
+                        .toString()) ??
+                0.0;
           });
           setState(() {
             isLoading = false;
@@ -406,8 +411,13 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
                       child: ElevatedButton(
                         onPressed: () {
                           setState(() {
+                            double receivedWeight =
+                                double.tryParse(decodedWeight) ?? 0.0;
+                            double adjustedWeight =
+                                receivedWeight - currentTotalWeight;
                             weightController.text =
-                                decodedWeight.replaceAll('g', '');
+                                adjustedWeight.toStringAsFixed(2);
+                            // weightController.text = '5';
                           });
                         },
                         child: const Text('Apply from scales'),
