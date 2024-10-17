@@ -255,7 +255,7 @@ class _HomeState extends State<Home> {
                   const SizedBox(height: 80),
                   const Divider(),
                   // Detailed Weighing Mode
-                  const Text('Detailed Weighing Data mode',
+                  const Text('Detailed Weighing Data Mode',
                       style:
                           TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   CheckboxListTile(

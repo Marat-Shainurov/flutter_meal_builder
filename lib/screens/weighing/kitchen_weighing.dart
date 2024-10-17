@@ -8,8 +8,10 @@ import 'dart:typed_data';
 
 class KitchenWeighingProcess extends StatefulWidget {
   final dynamic record; // Weighing record passed from the Home widget
+  final bool detailedWeighingMode;
 
-  const KitchenWeighingProcess({Key? key, required this.record})
+  const KitchenWeighingProcess(
+      {Key? key, required this.record, required this.detailedWeighingMode})
       : super(key: key);
 
   @override
@@ -42,6 +44,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeWidget();
+    print('detailedWeighingMode: ${widget.detailedWeighingMode}');
   }
 
   void _initializeWidget() {
@@ -50,6 +53,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
     _skipWeighedSKUs();
     // Initiate connection to USB-Serial Controller
     _connectToUSBSerialController();
+    print('detailedWeighingMode: ${widget.detailedWeighingMode}');
   }
 
   @override
@@ -156,7 +160,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
                 .join(' ');
 
             // Automatically apply the weight if the checkbox is checked
-            if (getFromScales) {
+            if (widget.detailedWeighingMode) {
               double receivedWeight = double.tryParse(weightWithoutUnit) ?? 0.0;
               double adjustedWeight = receivedWeight - currentTotalWeight;
               weightController.text = adjustedWeight.toStringAsFixed(2);
@@ -338,23 +342,6 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Checkbox to toggle 'Get data from scales'
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Checkbox(
-                          value: getFromScales,
-                          onChanged: (bool? value) {
-                            setState(() {
-                              getFromScales = value ?? false;
-                            });
-                          },
-                        ),
-                        const Text('Get data from scales'),
-                      ],
-                    ),
-                    // Display SKU info and quantity
                     Text(
                       '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
                       style: const TextStyle(
@@ -363,24 +350,6 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
                         color: Colors.black,
                       ),
                       textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    Visibility(
-                      visible:
-                          !getFromScales, // Show the widget only if getFromScales is true
-                      child: Center(
-                        child: SizedBox(
-                          width: 180, // Set the desired width to be narrower
-                          child: TextField(
-                            controller: weightController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Enter weight',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                      ),
                     ),
                     const SizedBox(height: 20),
                     FAProgressBar(
@@ -397,32 +366,52 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
-
-                    Text(
-                      'Current SKU weight: ${decodedWeight.isNotEmpty ? ((double.tryParse(decodedWeight.replaceAll('g', '').trim()) ?? 0.0) - (currentTotalWeight ?? 0.0)) : 'N/A'} g',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
                     const SizedBox(height: 20),
-
                     Visibility(
-                      visible:
-                          !getFromScales, // Show the widget only if getFromScales is true
-                      child: ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            double receivedWeight =
-                                double.tryParse(decodedWeight) ?? 0.0;
-                            double adjustedWeight =
-                                receivedWeight - currentTotalWeight;
-                            weightController.text =
-                                adjustedWeight.toStringAsFixed(2);
-                            // weightController.text = '5';
-                          });
-                        },
-                        child: const Text('Apply from scales'),
+                      visible: widget.detailedWeighingMode,
+                      child: Container(
+                        color: Colors.yellow[100],
+                        child: Column(
+                          children: [
+                            Text(
+                              'Current SKU weight: ${decodedWeight.isNotEmpty ? ((double.tryParse(decodedWeight.replaceAll('g', '').trim()) ?? 0.0) - (currentTotalWeight ?? 0.0)) : 'N/A'} g',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Center(
+                              child: SizedBox(
+                                width: 180,
+                                child: TextField(
+                                  controller: weightController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Enter weight',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  double receivedWeight =
+                                      double.tryParse(decodedWeight) ?? 0.0;
+                                  double adjustedWeight =
+                                      receivedWeight - currentTotalWeight;
+                                  weightController.text =
+                                      adjustedWeight.toStringAsFixed(2);
+                                });
+                              },
+                              child: const Text('Apply from scales'),
+                            ),
+                          ],
+                        ),
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
