@@ -7,7 +7,9 @@ import 'package:flutter_meal_builder/services/utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class Weighing extends StatefulWidget {
-  const Weighing({super.key});
+  final bool detailedWeighingMode;
+  const Weighing({Key? key, required this.detailedWeighingMode})
+      : super(key: key);
 
   @override
   _WeighingState createState() => _WeighingState();
@@ -28,6 +30,7 @@ class _WeighingState extends State<Weighing> {
     super.initState();
     _loadRestaurantData();
     _fetchSessionAndWeighingRecords();
+    print('detailedWeighingMode: ${widget.detailedWeighingMode}');
   }
 
   Future<void> _loadRestaurantData() async {
@@ -112,8 +115,11 @@ class _WeighingState extends State<Weighing> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    WeighingProcess(record: record),
+                                builder: (context) => WeighingProcess(
+                                  record: record,
+                                  detailedWeighingMode:
+                                      widget.detailedWeighingMode,
+                                ),
                               ),
                             );
                           },

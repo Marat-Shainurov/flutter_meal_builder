@@ -8,14 +8,18 @@ import 'dart:typed_data';
 
 class WeighingProcess extends StatefulWidget {
   final dynamic record; // Weighing record passed from Weighing widget
+  final bool detailedWeighingMode;
 
-  const WeighingProcess({Key? key, required this.record}) : super(key: key);
+  const WeighingProcess(
+      {Key? key, required this.record, required this.detailedWeighingMode})
+      : super(key: key);
 
   @override
   _WeighingProcessState createState() => _WeighingProcessState();
 }
 
-class _WeighingProcessState extends State<WeighingProcess> {
+class _WeighingProcessState extends State<WeighingProcess>
+    with WidgetsBindingObserver {
   bool isLoading = false;
   int currentIndex = 0;
   TextEditingController weightController = TextEditingController();
@@ -33,12 +37,37 @@ class _WeighingProcessState extends State<WeighingProcess> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeWidget();
+    print('detailedWeighingMode: ${widget.detailedWeighingMode}');
+  }
+
+  void _initializeWidget() {
     weightController.addListener(_updateProgressBar);
     // Skip already weighed SKUs on initialization
     _skipWeighedSKUs();
-
     // Initiate connection to USB-Serial Controller
     _connectToUSBSerialController();
+    print('detailedWeighingMode: ${widget.detailedWeighingMode}');
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    weightController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      // App is closing or being minimized
+      _disconnectFromUSBSerialController();
+    } else if (state == AppLifecycleState.resumed) {
+      // Reinitialize when app comes back to the foreground
+      _initializeWidget();
+    }
   }
 
   // Method to connect to 'USB-Serial Controller'
@@ -82,6 +111,23 @@ class _WeighingProcessState extends State<WeighingProcess> {
     }
   }
 
+  void _disconnectFromUSBSerialController() async {
+    if (isConnected) {
+      try {
+        await _flutterSerialCommunicationPlugin.disconnect();
+        setState(() {
+          isConnected = false;
+          deviceName = 'Disconnected';
+        });
+        print('Successfully disconnected');
+      } catch (e) {
+        print('Error during disconnection: $e');
+      }
+    } else {
+      print('Successfully disconnected - no device connected');
+    }
+  }
+
   // Method to listen to the data from the USB-Serial Controller
   void _startListeningForWeight() {
     _flutterSerialCommunicationPlugin
@@ -100,12 +146,19 @@ class _WeighingProcessState extends State<WeighingProcess> {
           buffer.removeRange(0, gIndex + 1);
 
           String decodedData = String.fromCharCodes(messageBytes);
+          String weightWithoutUnit = decodedData.replaceAll('g', '').trim();
 
           setState(() {
             decodedWeight = decodedData;
             rawDataString = messageBytes
                 .map((e) => e.toRadixString(16).padLeft(2, '0'))
                 .join(' ');
+
+            // Automatically apply the weight from the digital scale
+            if (widget.detailedWeighingMode) {
+              double receivedWeight = double.tryParse(weightWithoutUnit) ?? 0.0;
+              weightController.text = receivedWeight.toStringAsFixed(2);
+            }
           });
         }
 
@@ -127,12 +180,8 @@ class _WeighingProcessState extends State<WeighingProcess> {
   }
 
   void _updateProgressBar() {
-    final currentItem = widget.record['items'][currentIndex];
     double weight = double.tryParse(weightController.text) ?? 0;
-    double expectation = currentItem['expectation'];
-    double maxBarValue = expectation * 1.05;
     setState(() {
-      // _progressValue = (weight / maxBarValue) * 100;
       _progressValue = weight;
     });
   }
@@ -163,6 +212,7 @@ class _WeighingProcessState extends State<WeighingProcess> {
 
         // If this was the last SKU, show a popup and navigate to Weighing widget
         if (currentIndex == widget.record['items'].length - 1) {
+          _disconnectFromUSBSerialController();
           _showCompletionDialog();
         } else {
           currentIndex++;
@@ -196,8 +246,9 @@ class _WeighingProcessState extends State<WeighingProcess> {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                      builder: (context) =>
-                          Weighing()), // Navigate to Weighing widget
+                      builder: (context) => Weighing(
+                            detailedWeighingMode: widget.detailedWeighingMode,
+                          )), // Navigate to Weighing widget
                 );
               },
               child: Text('Ok'),
@@ -227,152 +278,174 @@ class _WeighingProcessState extends State<WeighingProcess> {
     double expectation = currentItem['expectation'];
     double weight = double.tryParse(weightController.text) ?? 0;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${currentItem['sku']} weighing',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.blue[500],
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Center(
-              child: Text('${currentIndex + 1}/$totalItems',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16)),
-            ),
+    return PopScope(
+        onPopInvoked: (bool didPop) {
+          _disconnectFromUSBSerialController(); // Disconnect before navigating back
+          return;
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text('${currentItem['sku']} weighing',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.blue[500],
+            centerTitle: true,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Center(
+                  child: Text('${currentIndex + 1}/$totalItems',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16)),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+          body: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Display SKU info and quantity
+                      Text(
+                        '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+
+                      const SizedBox(height: 20),
+                      // Progress bar based on weight input
+                      FAProgressBar(
+                        currentValue: _progressValue,
+                        maxValue: currentItem['expectation'] * 1.05,
+                        displayText: ' g',
+                        progressColor:
+                            _getProgressBarColor(weight, expectation),
+                        backgroundColor: Colors.grey[300]!,
+                        animatedDuration: const Duration(milliseconds: 400),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Current total weight from scales: $decodedWeight',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 20),
+                      // Centered Weight input field with a small width
+                      Visibility(
+                        visible: widget.detailedWeighingMode,
+                        child: Container(
+                          color: Colors.yellow[100],
+                          child: Column(
+                            children: [
+                              Center(
+                                child: SizedBox(
+                                  width:
+                                      180, // Set the desired width to be narrower
+                                  child: TextField(
+                                    controller: weightController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Enter weight',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    double receivedWeight =
+                                        double.tryParse(decodedWeight) ?? 0.0;
+                                    weightController.text =
+                                        receivedWeight.toStringAsFixed(2);
+                                  });
+                                },
+                                child: const Text('Apply from scales'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+          bottomNavigationBar: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Container(
+              height: 80, // Set an appropriate height for the bottom bar
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Display SKU info and quantity
-                  Text(
-                    '${currentItem['qty']} x ${currentItem['sku']} (${currentItem['expectation']} g.)',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  // Centered Weight input field with a small width
-                  Center(
-                    child: SizedBox(
-                      width: 180, // Set the desired width to be narrower
-                      child: TextField(
-                        controller: weightController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Enter weight',
-                          border: OutlineInputBorder(),
+                  // Previous SKU and weight (if available)
+                  if (currentIndex > 0)
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "Previous:\n${widget.record['items'][currentIndex - 1]['sku']} "
+                          "${weighingProcess[widget.record['items'][currentIndex - 1]['sku_identifier']]?['value'] ?? ''} g",
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.left,
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(child: SizedBox()), // Empty space if no previous
+
+                  // Next button in the center
+                  SizedBox(
+                    width: 150, // Button size
+                    child: ElevatedButton(
+                      onPressed: _nextSKU,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[500],
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 16.0), // Button padding
+                      ),
+                      child: const Text(
+                        'Next',
+                        style: TextStyle(
+                          color: Colors.white, // White text
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  // Progress bar based on weight input
-                  FAProgressBar(
-                    currentValue: _progressValue,
-                    maxValue: currentItem['expectation'] * 1.05,
-                    displayText: ' g',
-                    progressColor: _getProgressBarColor(weight, expectation),
-                    backgroundColor: Colors.grey[300]!,
-                    animatedDuration: const Duration(milliseconds: 400),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Current total weight from scales: $decodedWeight',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        weightController.text =
-                            decodedWeight.replaceAll('g', '');
-                      });
-                    },
-                    child: const Text('Apply from scales'),
-                  ),
+
+                  // Next SKU info (if available)
+                  if (currentIndex < totalItems - 1)
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          "Next:\n${widget.record['items'][currentIndex + 1]['sku']}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(child: SizedBox()), // Empty space if no next
                 ],
               ),
             ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Container(
-          height: 80, // Set an appropriate height for the bottom bar
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Previous SKU and weight (if available)
-              if (currentIndex > 0)
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Previous:\n${widget.record['items'][currentIndex - 1]['sku']} "
-                      "${weighingProcess[widget.record['items'][currentIndex - 1]['sku_identifier']]?['value'] ?? ''} g",
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.left,
-                    ),
-                  ),
-                )
-              else
-                Expanded(child: SizedBox()), // Empty space if no previous
-
-              // Next button in the center
-              SizedBox(
-                width: 150, // Button size
-                child: ElevatedButton(
-                  onPressed: _nextSKU,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[500],
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 16.0), // Button padding
-                  ),
-                  child: const Text(
-                    'Next',
-                    style: TextStyle(
-                      color: Colors.white, // White text
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Next SKU info (if available)
-              if (currentIndex < totalItems - 1)
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      "Next:\n${widget.record['items'][currentIndex + 1]['sku']}",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                )
-              else
-                Expanded(child: SizedBox()), // Empty space if no next
-            ],
           ),
-        ),
-      ),
-    );
+        ));
   }
 }

@@ -414,7 +414,9 @@ class _HomeState extends State<Home> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => Weighing(),
+                    builder: (context) => Weighing(
+                      detailedWeighingMode: detailedWeighingMode,
+                    ),
                   ),
                 );
               },

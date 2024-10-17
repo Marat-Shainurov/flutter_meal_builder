@@ -37,8 +37,6 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
   double startWeight = 0; // Start weight for the current SKU
   double accumulatedWeight = 0; // Total accumulated weight
 
-  bool getFromScales = false; // To manage the checkbox
-
   @override
   void initState() {
     super.initState();
@@ -159,7 +157,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
                 .map((e) => e.toRadixString(16).padLeft(2, '0'))
                 .join(' ');
 
-            // Automatically apply the weight if the checkbox is checked
+            // Automatically apply the weight from the digital scale
             if (widget.detailedWeighingMode) {
               double receivedWeight = double.tryParse(weightWithoutUnit) ?? 0.0;
               double adjustedWeight = receivedWeight - currentTotalWeight;
