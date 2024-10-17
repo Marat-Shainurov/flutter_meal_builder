@@ -33,6 +33,7 @@ class _HomeState extends State<Home> {
   String? restaurantName;
   Map<dynamic, dynamic> weighingRecord = {};
   // Timer? _timer; // Timer instance
+  bool detailedWeighingMode = false;
 
   @override
   void initState() {
@@ -41,7 +42,7 @@ class _HomeState extends State<Home> {
     _loadRestaurantData();
     _fetchSessionAndOrders();
     // _startAutoRefresh(); // Start the periodic refresh
-    print('Current restaurantName: ${restaurantName}');
+    print('Current restaurantName: $restaurantName');
   }
 
   Future<void> _startKitchenWeighing(dynamic order) async {
@@ -60,8 +61,10 @@ class _HomeState extends State<Home> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                KitchenWeighingProcess(record: weighingRecord),
+            builder: (context) => KitchenWeighingProcess(
+              record: weighingRecord,
+              detailedWeighingMode: detailedWeighingMode,
+            ),
           ),
         );
       } else {
@@ -215,34 +218,74 @@ class _HomeState extends State<Home> {
     }
   }
 
-  Future<void> _showSetRestaurantDialog() async {
+  Future<void> _showSettingsDialog() async {
     TextEditingController restaurantController = TextEditingController();
+    bool isDetailedWeighingMode = detailedWeighingMode;
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Please, input your restaurant identifier'),
-              TextField(
-                controller: restaurantController,
-                decoration: const InputDecoration(hintText: "Restaurant ID"),
-              ),
-            ],
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Input restaurant identifier',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  TextField(
+                    controller: restaurantController,
+                    decoration:
+                        const InputDecoration(hintText: "Restaurant ID"),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      setState(() {
+                        restaurantId = restaurantController.text;
+                      });
+                      final sessionId = await odooService.fetchSessionId();
+                      _fetchRestaurant(sessionId, restaurantId!);
+                    },
+                    child: const Text('Set restaurant'),
+                  ),
+                  const SizedBox(height: 80),
+                  const Divider(),
+                  // Detailed Weighing Mode
+                  const Text('Detailed Weighing Data mode',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  CheckboxListTile(
+                    title: const Text("Mode status"),
+                    value: isDetailedWeighingMode,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        isDetailedWeighingMode = value!;
+                      });
+                    },
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        detailedWeighingMode = isDetailedWeighingMode;
+                      });
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Set mode'),
+                  ),
+                ],
+              );
+            },
           ),
           actions: [
             TextButton(
-              onPressed: () async {
+              onPressed: () {
                 Navigator.of(context).pop();
-                setState(() {
-                  restaurantId = restaurantController.text;
-                });
-                final sessionId = await odooService.fetchSessionId();
-                _fetchRestaurant(sessionId, restaurantId!);
               },
-              child: const Text('OK'),
+              child: const Text('Close'),
             ),
           ],
         );
@@ -377,11 +420,6 @@ class _HomeState extends State<Home> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.restaurant),
-              title: const Text('Set Restaurant'),
-              onTap: _showSetRestaurantDialog,
-            ),
-            ListTile(
               leading: const Icon(Icons.devices),
               title: const Text('Devices'),
               onTap: () {
@@ -392,6 +430,11 @@ class _HomeState extends State<Home> {
                   ),
                 );
               },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Settings'),
+              onTap: _showSettingsDialog,
             ),
           ],
         ),
@@ -404,6 +447,7 @@ class _HomeState extends State<Home> {
                   itemCount: orders.length,
                   itemBuilder: (context, index) {
                     final order = orders[index];
+                    bool hasWeighingRecord = order['has_weighing_records'];
                     DateTime parsedDate = DateTime.parse(order['date']);
                     String formattedDate =
                         DateFormat('dd.MM.yyyy HH:mm').format(parsedDate);
@@ -426,12 +470,14 @@ class _HomeState extends State<Home> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.scale),
-                              onPressed: () {
-                                _startKitchenWeighing(order);
-                              },
-                            ),
+                            hasWeighingRecord
+                                ? IconButton(
+                                    icon: const Icon(Icons.scale),
+                                    onPressed: () {
+                                      _startKitchenWeighing(order);
+                                    },
+                                  )
+                                : const SizedBox.shrink(),
                             IconButton(
                               icon: const Icon(Icons.print),
                               onPressed: () {
