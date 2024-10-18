@@ -33,6 +33,7 @@ class _WeighingProcessState extends State<WeighingProcess>
   String rawDataString = ''; // To hold raw data as a string
   List<int> buffer = []; // Buffer to accumulate incoming data
   String deviceName = 'No device found';
+  bool getFromScales = true;
 
   @override
   void initState() {
@@ -155,7 +156,7 @@ class _WeighingProcessState extends State<WeighingProcess>
                 .join(' ');
 
             // Automatically apply the weight from the digital scale
-            if (widget.detailedWeighingMode) {
+            if (getFromScales) {
               double receivedWeight = double.tryParse(weightWithoutUnit) ?? 0.0;
               weightController.text = receivedWeight.toStringAsFixed(2);
             }
@@ -347,32 +348,40 @@ class _WeighingProcessState extends State<WeighingProcess>
                           color: Colors.yellow[100],
                           child: Column(
                             children: [
-                              Center(
-                                child: SizedBox(
-                                  width:
-                                      180, // Set the desired width to be narrower
-                                  child: TextField(
-                                    controller: weightController,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Enter weight',
-                                      border: OutlineInputBorder(),
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Checkbox(
+                                    value: getFromScales,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        getFromScales = value ?? true;
+                                      });
+                                      print('getFromScales: $getFromScales');
+                                    },
+                                  ),
+                                  const Text('Get data from scales'),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Visibility(
+                                visible: !getFromScales,
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 180,
+                                    child: TextField(
+                                      controller: weightController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Enter weight',
+                                        border: OutlineInputBorder(),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 20),
-                              ElevatedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    double receivedWeight =
-                                        double.tryParse(decodedWeight) ?? 0.0;
-                                    weightController.text =
-                                        receivedWeight.toStringAsFixed(2);
-                                  });
-                                },
-                                child: const Text('Apply from scales'),
-                              ),
+                              )
                             ],
                           ),
                         ),

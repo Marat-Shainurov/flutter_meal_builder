@@ -14,7 +14,7 @@ import 'package:flutter_sunmi_printer_plus/column_maker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class Home extends StatefulWidget {
-  const Home({super.key});
+  const Home({Key? key}) : super(key: key);
 
   @override
   _HomeState createState() => _HomeState();
@@ -41,8 +41,23 @@ class _HomeState extends State<Home> {
     _initializePrinter();
     _loadRestaurantData();
     _fetchSessionAndOrders();
+    _loadDetailedWeighingMode();
     // _startAutoRefresh(); // Start the periodic refresh
     print('Current restaurantName: $restaurantName');
+  }
+
+  // Load detailedWeighingMode from SharedPreferences
+  Future<void> _loadDetailedWeighingMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      detailedWeighingMode = prefs.getBool('detailedWeighingMode') ?? false;
+    });
+  }
+
+  // Save detailedWeighingMode to SharedPreferences
+  Future<void> _saveDetailedWeighingMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('detailedWeighingMode', value);
   }
 
   Future<void> _startKitchenWeighing(dynamic order) async {
@@ -62,9 +77,8 @@ class _HomeState extends State<Home> {
           context,
           MaterialPageRoute(
             builder: (context) => KitchenWeighingProcess(
-              record: weighingRecord,
-              detailedWeighingMode: detailedWeighingMode,
-            ),
+                record: weighingRecord,
+                detailedWeighingMode: detailedWeighingMode),
           ),
         );
       } else {
@@ -271,6 +285,9 @@ class _HomeState extends State<Home> {
                     onPressed: () {
                       setState(() {
                         detailedWeighingMode = isDetailedWeighingMode;
+                      });
+                      setState(() {
+                        _saveDetailedWeighingMode(detailedWeighingMode);
                       });
                       Navigator.of(context).pop();
                     },

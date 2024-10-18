@@ -36,6 +36,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
   String deviceName = 'No device found';
   double startWeight = 0; // Start weight for the current SKU
   double accumulatedWeight = 0; // Total accumulated weight
+  bool getFromScales = true;
 
   @override
   void initState() {
@@ -43,6 +44,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
     WidgetsBinding.instance.addObserver(this);
     _initializeWidget();
     print('detailedWeighingMode: ${widget.detailedWeighingMode}');
+    print('getFromScales: $getFromScales');
   }
 
   void _initializeWidget() {
@@ -158,7 +160,7 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
                 .join(' ');
 
             // Automatically apply the weight from the digital scale
-            if (widget.detailedWeighingMode) {
+            if (getFromScales) {
               double receivedWeight = double.tryParse(weightWithoutUnit) ?? 0.0;
               double adjustedWeight = receivedWeight - currentTotalWeight;
               weightController.text = adjustedWeight.toStringAsFixed(2);
@@ -378,34 +380,40 @@ class _KitchenWeighingProcessState extends State<KitchenWeighingProcess>
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Checkbox(
+                                  value: getFromScales,
+                                  onChanged: (bool? value) {
+                                    setState(() {
+                                      getFromScales = value ?? true;
+                                    });
+                                    print('getFromScales: $getFromScales');
+                                  },
+                                ),
+                                const Text('Get data from scales'),
+                              ],
+                            ),
                             const SizedBox(height: 20),
-                            Center(
-                              child: SizedBox(
-                                width: 180,
-                                child: TextField(
-                                  controller: weightController,
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Enter weight',
-                                    border: OutlineInputBorder(),
+                            Visibility(
+                              visible: !getFromScales,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 180,
+                                  child: TextField(
+                                    controller: weightController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Enter weight',
+                                      border: OutlineInputBorder(),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 20),
-                            ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  double receivedWeight =
-                                      double.tryParse(decodedWeight) ?? 0.0;
-                                  double adjustedWeight =
-                                      receivedWeight - currentTotalWeight;
-                                  weightController.text =
-                                      adjustedWeight.toStringAsFixed(2);
-                                });
-                              },
-                              child: const Text('Apply from scales'),
-                            ),
+                            )
                           ],
                         ),
                       ),
